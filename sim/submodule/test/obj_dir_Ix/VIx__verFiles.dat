@@ -1,0 +1,13 @@
+# DESCRIPTION: Verilator output: Timestamp data for --skip-identical.  Delete at will.
+C "--cc --top-module Ix --Mdir obj_dir_Ix --assert -O3 --unroll-count 1000000 --unroll-stmts 1000000 --Wno-UNOPTFLAT --Wno-UNSIGNED --Wno-WIDTH Ix.v"
+S   5583472 1122665496  1581786322   733859001  1579659060   618220371 "/classes/ece5745/install/stow-pkgs/x86_64-rhel7/pkgs/verilator-4.024/bin/verilator_bin"
+S      1539 22120190  1587588360   811861186  1587588360   810861187 "Ix.v"
+T     10565 6313423907  1587588360   905861072  1587588360   905861072 "obj_dir_Ix/VIx.cpp"
+T      2531 6313423906  1587588360   903861074  1587588360   903861074 "obj_dir_Ix/VIx.h"
+T      1455 6313423909  1587588360   908861068  1587588360   908861068 "obj_dir_Ix/VIx.mk"
+T       524 6313423904  1587588360   899861079  1587588360   899861079 "obj_dir_Ix/VIx__Syms.cpp"
+T       733 6313423905  1587588360   901861076  1587588360   901861076 "obj_dir_Ix/VIx__Syms.h"
+T       352 6313423910  1587588360   910861065  1587588360   910861065 "obj_dir_Ix/VIx__ver.d"
+T         0        0  1587588360   921861052  1587588360   921861052 "obj_dir_Ix/VIx__verFiles.dat"
+T      1233 6313423908  1587588360   906861070  1587588360   906861070 "obj_dir_Ix/VIx_classes.mk"
+S         0        0           0           0           1           0 "submodule/IxVRTL.v"

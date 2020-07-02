@@ -1,0 +1,67 @@
+#=========================================================================
+# Summarize Results
+#=========================================================================
+# Author : Khalid Al-Hawaj
+# Date   : Feb 14, 2020
+#
+
+name: vcd2saif
+
+#-------------------------------------------------------------------------
+# Inputs and Outputs
+#-------------------------------------------------------------------------
+
+inputs:
+  # VCD
+  - vcd.list
+
+outputs:
+  - saif.list
+  - run.saif
+  - clk-def.tcl
+
+#-------------------------------------------------------------------------
+# Commands
+#-------------------------------------------------------------------------
+
+commands:
+  - "  rm -f saif.list"
+  - "  touch saif.list"
+  - ""
+  - "  _cur_dir=$(readlink -f $(pwd))"
+  - "  _top_dir=$(readlink -f $(pwd)/..)"
+  - "  _ref_dir=$(readlink -f ${{_top_dir}}/dummy)"
+  - ""
+  - "  first=true"
+  - ""
+  - "  for vcd_path in $(cat inputs/vcd.list); do"
+  - "    vcd_fn=$(basename ${{vcd_path}})"
+  - "    saif_base=$(echo ${{vcd_fn}} | sed -e 's/^\\(.*\\).vcd$/\\1/g')"
+  - "    saif_fn=${{saif_base}}.saif"
+  - "    saif_scaled_fn=${{saif_base}}-scaled.saif"
+  - ""
+  - "    vcd2saif -input ${{vcd_path}} -output ${{saif_fn}}"
+  - "    ./preprocess-saif {clock_period} ${{saif_fn}} ${{saif_scaled_fn}} clk-def.tcl"
+  - ""
+  - "    _abs_dir=$(realpath ${{saif_scaled_fn}})"
+  - "    _rel_dir=$(realpath --relative-to=${{_ref_dir}} ${{_abs_dir}})"
+  - ""
+  - "    echo ${{_rel_dir}} >> saif.list"
+  - ""
+  - "    if [ \"${{first}}\" == \"true\" ]; then"
+  - "      (cd outputs && ln -sf ../${{saif_fn}} run.saif)"
+  - "      cp clk-def.tcl outputs/"
+  - "    fi"
+  - ""
+  - "    first=false"
+  - "  done"
+  - ""
+  - "  cd outputs && ln -sf ../saif.list saif.list"
+
+#-------------------------------------------------------------------------
+# Parameters
+#-------------------------------------------------------------------------
+
+parameters:
+  vcd: undefined
+  clock_period: 0

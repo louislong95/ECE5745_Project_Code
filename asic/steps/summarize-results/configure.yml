@@ -1,0 +1,41 @@
+#=========================================================================
+# Summarize Results
+#=========================================================================
+# Author : Khalid Al-Hawaj
+# Date   : Feb 12, 2020
+#
+
+name: summarize-results
+
+#-------------------------------------------------------------------------
+# Inputs and Outputs
+#-------------------------------------------------------------------------
+
+inputs:
+  - innovus-foundation-flow
+  - adk
+  - design.checkpoint
+  - drc.results
+  - lvs.results
+  - signoff.summaryReport.rpt
+  - signoff.summary
+  - design.pwr.eval
+
+#-------------------------------------------------------------------------
+# Commands
+#-------------------------------------------------------------------------
+
+commands:
+  - ./summarize-results "{clock_period}"
+                        "{design_name}"
+                        inputs/signoff.summaryReport.rpt
+                        inputs/signoff.summary
+                        inputs/design.pwr.eval
+
+#-------------------------------------------------------------------------
+# Parameters
+#-------------------------------------------------------------------------
+
+parameters:
+  design_name: undefined
+  clock_period: 0

@@ -1,0 +1,47 @@
+#=========================================================================
+# Pull-in RTL Verilog files
+#=========================================================================
+# Author : Khalid Al-Hawaj
+# Date   : Feb 13, 2020
+#
+
+name: rtl
+
+#-------------------------------------------------------------------------
+# Inputs and Outputs
+#-------------------------------------------------------------------------
+
+outputs:
+  - design.v
+
+#-------------------------------------------------------------------------
+# Commands
+#-------------------------------------------------------------------------
+
+commands:
+  - "  rtl_filename={rtl}"
+  - ""
+  - "  _cur_dir=$(readlink -f $(pwd))"
+  - "  _top_dir=$(readlink -f $(pwd)/..)"
+  - "  _flw_dir=$(dirname $(readlink -f {construct_path}))"
+  - "  _abs_dir=$(cd $(realpath ${{_flw_dir}}) && realpath {sim_directory})"
+  - ""
+  - "  rm -f *.v"
+  - "  rm -f outputs/design.v"
+  - ""
+  - "  if [ -f ${{_abs_dir}}/${{rtl_filename}} ]; then"
+  - "    cp ${{_abs_dir}}/${{rtl_filename}} ${{rtl_filename}}"
+  - "    (cd outputs && ln -sf ../${{rtl_filename}} design.v)"
+  - "  else"
+  - "    echo '[WARNING] Cannot find the RTL file \"'${{rtl_filename}}'\"'"
+  - "    echo '          in the simulation directory \"'${{sim_directory}}'\"'"
+  - "  fi"
+
+#-------------------------------------------------------------------------
+# Parameters
+#-------------------------------------------------------------------------
+
+parameters:
+  construct_path: undefined
+  sim_directory: undefined
+  rtl: undefined

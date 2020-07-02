@@ -1,0 +1,56 @@
+#=========================================================================
+# Pull-in VCD files
+#=========================================================================
+# Author : Khalid Al-Hawaj
+# Date   : Feb 13, 2020
+#
+
+name: vcd
+
+#-------------------------------------------------------------------------
+# Inputs and Outputs
+#-------------------------------------------------------------------------
+
+outputs:
+  - vcd.list
+
+#-------------------------------------------------------------------------
+# Commands
+#-------------------------------------------------------------------------
+
+commands:
+  - "  l_vcd=({vcd})"
+  - ""
+  - "  _cur_dir=$(readlink -f $(pwd))"
+  - "  _top_dir=$(readlink -f $(pwd)/..)"
+  - "  _ref_dir=$(readlink -f ${{_top_dir}}/dummy)"
+  - "  _flw_dir=$(dirname $(readlink -f {construct_path}))"
+  - "  _abs_dir=$(cd $(realpath ${{_flw_dir}}) && realpath {sim_directory})"
+  - "  _rel_dir=$(realpath --relative-to=${{_ref_dir}} ${{_abs_dir}})"
+  - ""
+  - "  rm -f vcd.list"
+  - "  touch vcd.list"
+  - ""
+  - "  for vcd_file in \"${{l_vcd[@]}}\"; do"
+  - "    if [ -f ${{_rel_dir}}/${{vcd_file}} ]; then"
+  - "      cp ${{_rel_dir}}/${{vcd_file}} ."
+  - ""
+  - "      _dir=$(readlink -f ${{vcd_file}})"
+  - "      _path=$(realpath --relative-to=${{_ref_dir}} ${{_dir}})"
+  - "      echo ${{_path}} >> vcd.list"
+  - "    else"
+  - "      echo '[WARNING] Cannot find the VCD file \"'${{vcd_file}}'\"'"
+  - "      echo '          in the simulation directory \"'${{sim_directory}}'\"'"
+  - "    fi"
+  - "  done"
+  - ""
+  - "  cd outputs && ln -sf ../vcd.list vcd.list"
+
+#-------------------------------------------------------------------------
+# Parameters
+#-------------------------------------------------------------------------
+
+parameters:
+  construct_path: undefined
+  sim_directory: undefined
+  vcd: undefined

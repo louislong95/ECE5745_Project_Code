@@ -1,0 +1,50 @@
+#=========================================================================
+# Summarize Results
+#=========================================================================
+# Author : Khalid Al-Hawaj
+# Date   : Feb 14, 2020
+#
+
+name: synopsys-pt-pwr
+
+#-------------------------------------------------------------------------
+# Inputs and Outputs
+#-------------------------------------------------------------------------
+
+inputs:
+  # ADK
+  - adk
+  # VCD2SAIF
+  - saif.list
+  - clk-def.tcl
+  # DB files
+  - openram-db.list
+  # DC
+  - design.sdc
+  - design.namemap
+  # Innovus
+  - design.vcs.v
+  - design.pt.sdc
+  - design.spef.gz
+  # Reports
+  - signoff.summaryReport.rpt
+  - signoff.summary
+
+outputs:
+  - design.pwr.eval
+
+#-------------------------------------------------------------------------
+# Commands
+#-------------------------------------------------------------------------
+
+commands:
+  - sh ./run.sh
+
+#-------------------------------------------------------------------------
+# Parameters
+#-------------------------------------------------------------------------
+
+parameters:
+  design_name: undefined
+  clock_period: 0
+  vcd: undefined

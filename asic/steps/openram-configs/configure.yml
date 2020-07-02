@@ -1,0 +1,40 @@
+#=========================================================================
+# Pull-in OpenRAM configuration files
+#=========================================================================
+# Author : Khalid Al-Hawaj
+# Date   : Feb 13, 2020
+#
+
+name: openram-configs
+
+#-------------------------------------------------------------------------
+# Inputs and Outputs
+#-------------------------------------------------------------------------
+
+outputs:
+  - openram-cfg.list
+
+#-------------------------------------------------------------------------
+# Commands
+#-------------------------------------------------------------------------
+
+commands:
+  - "  l_openram_cfgs=({openram_cfgs})"
+  - ""
+  - "  rm -f openram-cfg.list"
+  - "  touch openram-cfg.list"
+  - ""
+  - "  for cfg_file in \"${{l_openram_cfgs[@]}}\"; do"
+  - "    echo \"${{cfg_file}}\" >> openram-cfg.input"
+  - "  done"
+  - ""
+  - "  sh ./run.sh"
+
+#-------------------------------------------------------------------------
+# Parameters
+#-------------------------------------------------------------------------
+
+parameters:
+  construct_path: undefined
+  openram_cfgs_directory: undefined
+  openram_cfgs: undefined

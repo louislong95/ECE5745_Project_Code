@@ -1,0 +1,30 @@
+//-----------------------------------------------------------------------------
+// SRAM
+//-----------------------------------------------------------------------------
+module SRAM_64x64_1P
+(
+  input wire           clk,
+  input wire           reset,
+
+  input wire           OEB1,
+  input wire           CSB1,
+  input wire  [   5:0] A1,
+  input wire  [  63:0] I1,
+  input wire           WEB1,
+
+  output reg  [  63:0] O1
+);
+
+  parameter DATA_WIDTH = 64 ;
+  parameter ADDR_WIDTH = 6 ;
+
+  // Actual RAM
+  SRAM_64x64_1P_inner sram ( .dout0(O1  ),
+                             .din0 (I1  ),
+                             .addr0(A1  ),
+                             .csb0 (CSB1),
+                             .web0 (WEB1),
+                             .clk0 (clk )
+                           );
+
+endmodule

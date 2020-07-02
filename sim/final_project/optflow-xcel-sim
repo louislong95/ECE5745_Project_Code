@@ -1,0 +1,348 @@
+#!/usr/bin/env python
+#=========================================================================
+# sort-xcel-sim [options]
+#=========================================================================
+#
+#  -h --help           Display this message
+#
+#  --impl              {fl,cl,rtl}
+#  --input <dataset>   {random,sorted-fwd,sorted-rev}
+#  --trace             Display line tracing
+#  --stats             Display statistics
+#  --translate         Translate RTL model to Verilog
+#  --dump-vcd          Dump VCD to imul-<impl>-<input>.vcd
+#
+# Author : Christopher Batten
+# Date   : March 16, 2015
+#
+
+
+# Hack to add project root to python path
+
+import os
+import sys
+
+sim_dir = os.path.dirname( os.path.abspath( __file__ ) )
+while sim_dir:
+  if os.path.exists( sim_dir + os.path.sep + ".pymtl_sim_root" ):
+    sys.path.insert(0,sim_dir)
+    break
+  sim_dir = os.path.dirname(sim_dir)
+
+import argparse
+import re
+import struct
+
+from random               import randint
+
+from pymtl3                import *
+from pymtl3.stdlib.test import config_model
+from pymtl3.passes.backends.verilog import VerilogPlaceholderPass
+
+#from lab2_xcel          import SortXcelFL
+#from lab2_xcel          import SortXcelCL
+#from lab2_xcel          import SortXcelRTL
+
+from  final_project      import Optical_flowRTL
+from proc.XcelMsg       import *
+
+#from lab2_xcel.test.SortXcelFL_test import TestHarness
+#from lab2_xcel.test.SortXcelFL_test import large_data, sort_fwd_data, sort_rev_data
+from  final_project.test.Optical_flow_test import TestHarness
+from  final_project.test.Optical_flow_test import basic_data,small_data,large_data,static_data
+
+#-------------------------------------------------------------------------
+# Command line processing
+#-------------------------------------------------------------------------
+
+class ArgumentParserWithCustomError(argparse.ArgumentParser):
+  def error( self, msg = "" ):
+    if ( msg ): print("\n ERROR: %s" % msg)
+    print("")
+    file = open( sys.argv[0] )
+    for ( lineno, line ) in enumerate( file ):
+      if ( line[0] != '#' ): sys.exit(msg != "")
+      if ( (lineno == 2) or (lineno >= 4) ): print( line[1:].rstrip("\n") )
+
+def parse_cmdline():
+  p = ArgumentParserWithCustomError( add_help=False )
+
+  # Standard command line arguments
+
+  p.add_argument( "-h", "--help",    action="store_true" )
+
+  # Additional commane line arguments for the simulator
+
+  p.add_argument( "--impl", default="rtl", choices=["rtl"] )
+
+  p.add_argument( "--input", default="basic",
+    choices=["basic","small","large","static"] )
+
+  p.add_argument( "--trace",     action="store_true" )
+  p.add_argument( "--stats",     action="store_true" )
+  p.add_argument( "--translate", action="store_true" )
+  p.add_argument( "--dump-vcd",  action="store_true" )
+
+  #p.add_argument( "--image_column", default=10 )
+
+  opts = p.parse_args()
+  if opts.help: p.error()
+  return opts
+
+#-------------------------------------------------------------------------
+# make messages
+#-------------------------------------------------------------------------
+
+def req( type_, raddr, data ):
+  return XcelReqMsg(XCEL_TYPE_READ if type_ == 'rd' else XCEL_TYPE_WRITE, raddr, data)
+
+def resp( type_, data ):
+  return XcelRespMsg(XCEL_TYPE_READ if type_ == 'rd' else XCEL_TYPE_WRITE, data)
+
+#-------------------------------------------------------------------------
+# Xcel Protocol
+#-------------------------------------------------------------------------
+# These are the source sink messages we need to configure the accelerator
+# and wait for it to finish. We use the same messages in all of our
+# tests. The difference between the tests is the data to be sorted in the
+# test memory.
+
+def gen_xcel_protocol_msgs( ):
+  return [
+    req( 'wr', 1, 0x5000 ), resp( 'wr', 0 ), # image_base_address
+    req( 'wr', 2, 5      ), resp( 'wr', 0 ), # image number
+    req( 'wr', 3, 3      ), resp( 'wr', 0 ), # corner number
+    req( 'wr', 4, 0x2000 ), resp( 'wr', 0 ), # corner_x
+    req( 'wr', 5, 0x2500 ), resp( 'wr', 0 ), # corner_y
+    req( 'wr', 6, 0x3000 ), resp( 'wr', 0 ), # Vx
+    req( 'wr', 7, 0x3500 ), resp( 'wr', 0 ), # Vy
+    req( 'wr', 8, 0x4000 ), resp( 'wr', 0 ), # De
+    req( 'wr', 0, 0      ), resp( 'wr', 0 ),
+    req( 'rd', 0, 0      ), resp( 'rd', 1 ),
+  ]
+
+#-------------------------------------------------------------------------
+# Main
+#-------------------------------------------------------------------------
+#temp data
+# random test result(including the boundary point test, random value test, large number of moving points test)
+Vx_test1 = [3635596964, 64180750, 101350340, 1414048758, 4092279258, 3899826252, 7865118, 4293905072, 2490388, 
+           4092744757, 338598203, 3822128840, 0, 5, 0]
+Vy_test1 = [342452558, 38359475, 141859744, 1070908858, 76299066, 3776469641, 4283770924, 4283464896, 4165782,
+           650355333, 4089797211, 186767780, 2, 4, 0]
+det_test1 = [2139453885, 407326175, 899340548, 2397465019, 743501714, 1073200221, 505675174, 504031824, 787204689,
+            1022771771, 904539173, 1686436445, 4294967295, 11, 8]
+
+# small pixel value test result
+Vx_test2 = [0, 0, 2, 1, 1, 1, 0, 3, 2, 0, 0, 0, 0, 0, 0]
+Vy_test2 = [0, 0, 1, 1, 1, 1, 1, 1, 1, 0, 0, 0, 0, 0, 0]
+det_test2 = [0, 4294967295, 4294967295, 0, 4294967295, 0, 4294967295, 4294967295, 1, 0, 0, 0, 0, 0, 0]
+
+# large pixel value test result
+Vx_test3 = [67, 36, 4294967293, 4294875688, 279177, 539106, 2252184, 13310749, 123649, 0, 0, 0, 0, 0, 0]
+Vy_test3 = [4294967284, 4294967260, 18, 34728, 4294169467, 4294011100, 307697, 9227490, 4294863071, 0, 0, 0, 0, 0, 0 ]
+det_test3 = [47, 33, 39, 176360, 1123269, 1352826, 19821976, 46137752, 7516129, 10570565, 10570565, 10570565, 4852936, 4852936, 4852936]
+            
+def main():
+  try:
+    import pypyjit
+    pypyjit.set_param("off")
+  except:
+    pass
+
+  opts = parse_cmdline()
+
+  # Create the input pattern
+
+  data = None
+  mode = 0
+
+  if   opts.input == "basic":     
+    data = basic_data
+    mode = 0
+  elif opts.input == "small":     
+    data = small_data
+    mode = 1
+  elif opts.input == "large":     
+    data = large_data
+    mode = 2
+  elif opts.input =='static':
+    data = static_data
+    mode = 3
+
+  ninputs = len(data[::8])
+
+  # Determine which model to use in the simulator
+
+  model_impl_dict = {
+    "rtl" : Optical_flowRTL,
+  }
+
+  # Check if translation is valid
+
+  if opts.translate and not opts.impl.startswith("rtl"):
+    print("\n ERROR: --translate only works with RTL models \n")
+    exit(1)
+
+  if opts.dump_vcd and not opts.impl.startswith("rtl"):
+    print("\n ERROR: --dump-vcd only works with RTL models \n")
+    exit(1)
+
+  # Create VCD filename
+
+  if opts.dump_vcd:
+    vcd_file_name = f"sort-xcel-{opts.impl}-{opts.input}"
+  else:
+    vcd_file_name = ""
+
+  # Convert test data into byte array
+
+  #data_bytes = struct.pack("<{}I".format(len(data)),*data)
+  #of_data = test_params.data
+  image1  = data[::8]
+  image2  = data[1::8]
+  image3  = data[2::8]
+  image4  = data[3::8]
+  image5  = data[4::8]
+  image6  = data[5::8]
+  cornerx = data[6::8]
+  cornery = data[7::8]
+  #data_src0 = current_frame
+  #data_src1 = next_frame
+  image1_bytes = [0]*len(image1)
+  image2_bytes = [0]*len(image2)
+  image3_bytes = [0]*len(image3)
+  image4_bytes = [0]*len(image4)
+  image5_bytes = [0]*len(image5)
+  image6_bytes = [0]*len(image6)
+  cornerx_bytes = [0]*len(cornerx)
+  cornery_bytes = [0]*len(cornery)
+
+  for i in range( len(image1) ):
+    image1_bytes[i] = struct.pack("<{}I".format(len(image1[i])),*image1[i])
+    image2_bytes[i] = struct.pack("<{}I".format(len(image2[i])),*image2[i])
+    image3_bytes[i] = struct.pack("<{}I".format(len(image3[i])),*image3[i])
+    image4_bytes[i] = struct.pack("<{}I".format(len(image4[i])),*image4[i])
+    image5_bytes[i] = struct.pack("<{}I".format(len(image5[i])),*image5[i])
+    image6_bytes[i] = struct.pack("<{}I".format(len(image6[i])),*image6[i])
+
+  for i in range( len(cornerx) ):
+    cornerx_bytes[i] = struct.pack("<{}I".format(len(cornerx[i])),*cornerx[i])
+    cornery_bytes[i] = struct.pack("<{}I".format(len(cornery[i])),*cornery[i])
+
+  # Protocol messages
+
+  xcel_protocol_msgs = []
+  for i in range( 1 ):
+    xcel_protocol_msgs = xcel_protocol_msgs + gen_xcel_protocol_msgs( )
+  xreqs  = xcel_protocol_msgs[::2]
+  xresps = xcel_protocol_msgs[1::2]
+  
+  #params
+  params={'image_column':10,
+          'image_row':10,
+          'window_size':3,
+          'window_size_ext':5}
+
+  #image_column,image_row,window_size,window_size_ext
+  # Create test harness (we can reuse the harness from unit testing)
+
+  th = TestHarness( model_impl_dict[ opts.impl ](**params) )
+  #th = TestHarness( model_impl_dict[ opts.impl ]() )
+
+  # Load the data
+
+  th.set_param("top.tm.src.construct",  msgs=xcel_protocol_msgs[::2] )
+  th.set_param("top.tm.sink.construct", msgs=xcel_protocol_msgs[1::2] )
+
+  # Configure the test harness component
+
+  config_model( th, vcd_file_name, opts.translate, ['xcel'] )
+
+  for i in range( len(image1) ):
+    th.mem.write_mem( 0x5000 + 4 * i,         image1_bytes[i] )
+    th.mem.write_mem( 0x5000 + 4 * (i + 100), image2_bytes[i] )
+    th.mem.write_mem( 0x5000 + 4 * (i + 200), image3_bytes[i] )
+    th.mem.write_mem( 0x5000 + 4 * (i + 300), image4_bytes[i] )
+    th.mem.write_mem( 0x5000 + 4 * (i + 400), image5_bytes[i] )
+    th.mem.write_mem( 0x5000 + 4 * (i + 500), image6_bytes[i] )
+
+  for i in range( len(cornerx) ):
+    th.mem.write_mem( 0x2000 + 4 * i,         cornerx_bytes[i] )
+    th.mem.write_mem( 0x2500 + 4 * i,         cornery_bytes[i] )
+
+  # Apply placeholder pass
+
+  th.apply ( VerilogPlaceholderPass() )
+
+  # We can call apply if we are 100% sure the top level is not tagged
+
+  th.apply( TranslationImportPass() )
+
+  # Create a simulator
+
+  th.apply( SimulationPass() )
+
+  # Reset test harness
+
+  th.sim_reset( print_line_trace=opts.trace )
+
+  # Run simulation
+  ncycles = 2
+
+  while not th.done():
+
+    if opts.trace:
+      th.print_line_trace()
+
+    th.tick()
+    ncycles += 1
+
+  # Extra ticks to make VCD easier to read
+
+  th.tick()
+  th.tick()
+  th.tick()
+
+  # Retrieve data from test memory
+
+  result_vx_bytes = [0]*len(cornerx)
+  result_vy_bytes = [0]*len(cornery)
+  result_de_bytes = [0]*len(cornerx)
+
+  for i in range( 1 ):
+    result_vx_bytes[i] = th.mem.read_mem( 0x3000+ 4*i, len(cornerx_bytes[i]) )
+    result_vy_bytes[i] = th.mem.read_mem( 0x3500+ 4*i, len(cornerx_bytes[i]) )
+    result_de_bytes[i] = th.mem.read_mem( 0x4000+ 4*i, len(cornerx_bytes[i]) )
+  
+  for i in range( len(result_vx_bytes) ):
+
+    # Convert result bytes into list of ints
+    result_vx = list(struct.unpack("<{}I".format(len(cornerx[i])),result_vx_bytes[i]))
+    result_vy = list(struct.unpack("<{}I".format(len(cornery[i])),result_vy_bytes[i]))
+    result_de = list(struct.unpack("<{}I".format(len(cornerx[i])),result_de_bytes[i]))
+
+  # Compare result to sorted reference
+
+  #assert result == sorted(data)
+  for i in range (15):
+    if (mode==0):
+      assert result_vx[i] == Vx_test1[i]
+      assert result_vy[i] == Vy_test1[i]
+      assert result_de[i] == det_test1[i]
+      #print("mode 0 passed")
+    elif (mode==1):
+      assert result_vx[i] == Vx_test2[i]
+      assert result_vy[i] == Vy_test2[i]
+      assert result_de[i] == det_test2[i]
+    elif (mode ==2):
+      assert result_vx[i] == Vx_test3[i]
+      assert result_vy[i] == Vy_test3[i]
+      assert result_de[i] == det_test3[i]
+
+  # Display statistics
+  #rint( "num_cycles = {}".format( ncycles ) )
+  if opts.stats:
+    print( "num_cycles = {}".format( ncycles ) )
+
+main()

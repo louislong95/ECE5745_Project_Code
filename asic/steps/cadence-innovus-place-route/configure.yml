@@ -1,0 +1,58 @@
+#=========================================================================
+# Cadence Innovus Place and Route
+#=========================================================================
+# Author : Christopher Torng
+# Date   : June 7, 2019
+#
+
+name: cadence-innovus-place-route
+
+#-------------------------------------------------------------------------
+# Inputs and Outputs
+#-------------------------------------------------------------------------
+
+inputs:
+  - innovus-foundation-flow
+  - adk
+  - design.v
+  - design.sdc
+  - openram-lef.list
+  - openram-lib.list
+
+outputs:
+  - design.checkpoint
+  - design.gds.gz
+  - design.lvs.v
+  - design.vcs.v
+  - design.lef
+  - design.pt.sdc
+  - design.sdf
+  - design.virtuoso.v
+  - design.spef.gz
+  - signoff.summaryReport.rpt
+  - signoff.summary
+
+#-------------------------------------------------------------------------
+# Commands
+#-------------------------------------------------------------------------
+
+commands:
+  - sh ./run.sh
+
+#-------------------------------------------------------------------------
+# Parameters
+#-------------------------------------------------------------------------
+
+parameters:
+  floorplan_ratio: 1.0
+  floorplan_util: 0.70
+
+#-------------------------------------------------------------------------
+# Debug
+#-------------------------------------------------------------------------
+
+debug:
+  - innovus -overwrite -64
+    -init innovus-foundation-flow/custom-scripts/run-debug.tcl
+    -log logs/debug.log
+

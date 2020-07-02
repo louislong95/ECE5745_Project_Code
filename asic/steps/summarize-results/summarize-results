@@ -1,0 +1,175 @@
+#!/usr/bin/env python
+#=========================================================================
+# summarize-results [options] <constraint> <vsrc> <innovus-area> <innovus-summary> <pwr-eval>
+#=========================================================================
+# Prepares a summary after place-route which includes: source verilog
+# file, input data set, area, cycle time, execution time.
+#
+#  -h --help     Display this message
+#  -v --verbose  Verbose mode
+#
+# Author : Christopher Batten
+# Date   : February 12, 2019
+#
+
+from __future__ import print_function
+
+import os
+import argparse
+import sys
+import gzip
+import datetime
+
+#-------------------------------------------------------------------------
+# Command line processing
+#-------------------------------------------------------------------------
+
+class ArgumentParserWithCustomError(argparse.ArgumentParser):
+  def error( self, msg = "" ):
+    if ( msg ): print("\n ERROR: %s" % msg)
+    print("")
+    file = open( sys.argv[0] )
+    for ( lineno, line ) in enumerate( file ):
+      if ( line[0] != '#' ): sys.exit(msg != "")
+      if ( (lineno == 2) or (lineno >= 4) ): print( line[1:].rstrip("\n") )
+
+def parse_cmdline():
+  p = ArgumentParserWithCustomError( add_help=False )
+
+  # Standard command line arguments
+
+  p.add_argument( "-v", "--verbose", action="store_true" )
+  p.add_argument( "-h", "--help",    action="store_true" )
+
+  # Additional commane line arguments
+
+  p.add_argument( "constraint" )
+  p.add_argument( "vsrc" )
+  p.add_argument( "innovus_area" )
+  p.add_argument( "innovus_summary" )
+  p.add_argument( "pwr_eval" )
+
+  opts = p.parse_args()
+  if opts.help: p.error()
+  return opts
+
+#-------------------------------------------------------------------------
+# Main
+#-------------------------------------------------------------------------
+
+def main():
+  opts = parse_cmdline()
+
+  # Results
+
+  vsrc       = opts.vsrc
+  timestamp  = datetime.datetime.now().strftime("%Y-%m-%d %H:%M")
+  area       = None
+  std_area   = None
+  macro_area = None
+  chip_area  = None
+  core_area  = None
+  constraint = float(opts.constraint)
+  slack      = None
+  exec_time  = None
+  pwr_rpt    = None
+
+  # Scan through innovus report for area
+
+  if opts.innovus_area.endswith('.gz'):
+    f_innovus_area = gzip.open( opts.innovus_area, 'rb' )
+  else:
+    f_innovus_area = open( opts.innovus_area )
+
+  for line in f_innovus_area:
+
+    if line.startswith("Total area of Chip: "):
+      chip_area = float(line.split(': ')[1].split(' ')[0])
+      continue
+
+    if line.startswith("Total area of Core: "):
+      core_area = float(line.split(': ')[1].split(' ')[0])
+      continue
+
+    if line.startswith("Total area of Standard cells(Subtracting Physical Cells): "):
+      std_area = float(line.split(': ')[1].split(' ')[0])
+      continue
+
+    if line.startswith("Total area of Macros: "):
+      macro_area = float(line.split(': ')[1].split(' ')[0])
+      continue
+
+  # Calculate area
+
+  if std_area != None and macro_area != None:
+    area = std_area + macro_area
+
+  f_innovus_area.close()
+
+  # Scan through innovus summary for slack
+
+  if opts.innovus_summary.endswith('.gz'):
+    f_innovus_summary = gzip.open( opts.innovus_summary, 'rb' )
+  else:
+    f_innovus_summary = open( opts.innovus_summary )
+
+  for line in f_innovus_summary :
+
+    if line.startswith("|           WNS (ns):|"):
+      slack = float(line.split('|')[2])
+      continue
+
+  f_innovus_summary.close()
+
+  # Get power evaluation
+
+  if os.path.isfile( opts.pwr_eval ):
+    if opts.pwr_eval.endswith('.gz'):
+      f_pwr_eval = gzip.open( opts.pwr_eval, 'rb' )
+    else:
+      f_pwr_eval = open( opts.pwr_eval )
+
+    pwr_rpt = f_pwr_eval.read()
+
+    f_pwr_eval.close()
+
+  else:
+    pwr_rpt = '\n'
+
+  # All done scanning, print summary
+
+  print(
+"""\
+#=========================================================================
+# Post-Place-and-Route Results
+#=========================================================================
+
+  vsrc           = {vsrc}
+  timestamp      = {timestamp}
+  design area    = {area} um^2
+    stdcell area = {std_area} um^2
+    macros area  = {macro_area} um^2
+  chip area      = {chip_area} um^2
+    core area    = {core_area} um^2
+  constraint     = {constraint} ns
+  slack          = {slack} ns
+{pwr_rpt}\
+""".format(**locals()))
+
+#  print(
+#"""\
+##=========================================================================
+## Post-Place-and-Route Results
+##=========================================================================
+#
+#  vsrc       = {vsrc}
+#  input      = {input_}
+#  timestamp  = {timestamp}
+#  area       = {area} # um^2
+#  constraint = {constraint} # ns
+#  slack      = {slack} # ns
+#  exec_time  = {exec_time} # cycles
+#\
+#""".format(**locals()))
+
+main()
